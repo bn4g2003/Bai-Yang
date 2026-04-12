@@ -413,7 +413,7 @@ export function PondManagement() {
         </p>
       ) : null}
 
-      <div className="mb-2 hidden justify-end md:flex">
+      <div className="mb-2 flex justify-end">
         <DesktopQrScanButton />
       </div>
 

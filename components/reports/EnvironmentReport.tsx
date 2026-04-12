@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { EnvMetricsTrendChart } from "@/components/charts/EnvMetricsTrendChart";
 import { DataTable } from "@/components/data-table/DataTable";
 import type { DataTableColumn } from "@/components/data-table/types";
 import { createSupabaseBrowserClient, supabaseConfigured } from "@/lib/supabase/client";
@@ -118,12 +119,15 @@ export function EnvironmentReport() {
       {loading ? (
         <p className="text-sm text-zinc-500">Đang tải…</p>
       ) : (
-        <DataTable<LogRow>
-          title="Nhật ký môi trường"
-          columns={columns}
-          data={rows}
-          getRowId={(r) => r.id}
-        />
+        <>
+          <EnvMetricsTrendChart rows={rows} />
+          <DataTable<LogRow>
+            title="Nhật ký môi trường"
+            columns={columns}
+            data={rows}
+            getRowId={(r) => r.id}
+          />
+        </>
       )}
     </div>
   );

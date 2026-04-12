@@ -4,12 +4,16 @@ import { useState } from "react";
 import { btnSecondary } from "@/lib/ui";
 import { QrScanModal } from "./QrScanModal";
 
-/** Chỉ hiện trên màn hình md+ — laptop có webcam quét QR mở nhật ký. */
+/** Mở camera (hoặc chọn ảnh) để quét QR — dùng được trên điện thoại và máy tính. */
 export function DesktopQrScanButton() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className={btnSecondary} onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className={`${btnSecondary} w-full min-h-11 touch-manipulation sm:w-auto`}
+        onClick={() => setOpen(true)}
+      >
         <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
           <path
             strokeLinecap="round"

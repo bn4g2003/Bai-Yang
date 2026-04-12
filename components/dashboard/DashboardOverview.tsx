@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { DashboardSlTrendChart, type SlTrendPoint } from "@/components/charts/DashboardSlTrendChart";
+import { DashboardThdcDeltaChart } from "@/components/charts/DashboardThdcDeltaChart";
+import { DashboardThkhStackedChart } from "@/components/charts/DashboardThkhStackedChart";
 import { createSupabaseBrowserClient, supabaseConfigured } from "@/lib/supabase/client";
 import type { PondRow } from "@/lib/types/pond";
 
@@ -24,6 +27,7 @@ function isoToday() {
 
 export function DashboardOverview() {
   const [sl, setSl] = useState<SlRow | null>(null);
+  const [slTrend, setSlTrend] = useState<SlTrendPoint[]>([]);
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [ponds, setPonds] = useState<PondRow[]>([]);
@@ -40,8 +44,13 @@ export function DashboardOverview() {
     const supabase = createSupabaseBrowserClient();
     setError(null);
     const day = isoToday();
-    const [slRes, alertRes, planRes, pondRes] = await Promise.all([
+    const [slRes, slTrendRes, alertRes, planRes, pondRes] = await Promise.all([
       supabase.from("v_sl_ngay").select("*").eq("day", day).maybeSingle(),
+      supabase
+        .from("v_sl_ngay")
+        .select("day,total_feed_kg,total_dead_loss")
+        .order("day", { ascending: false })
+        .limit(14),
       supabase
         .from("v_env_alerts_latest")
         .select("pond_id,log_date,alert_reason")
@@ -56,6 +65,20 @@ export function DashboardOverview() {
     ]);
     if (slRes.error) setError(slRes.error.message);
     setSl((slRes.data as SlRow | null) ?? null);
+    if (slTrendRes.error) {
+      setSlTrend([]);
+    } else if (slTrendRes.data) {
+      const raw = slTrendRes.data as SlTrendPoint[];
+      setSlTrend(
+        [...raw].reverse().map((r) => ({
+          day: r.day,
+          total_feed_kg: Number(r.total_feed_kg),
+          total_dead_loss: Number(r.total_dead_loss),
+        })),
+      );
+    } else {
+      setSlTrend([]);
+    }
     if (!alertRes.error && alertRes.data) setAlerts(alertRes.data as AlertRow[]);
     if (!planRes.error && planRes.data) {
       setPlans(
@@ -124,6 +147,14 @@ export function DashboardOverview() {
             Theo <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">log_date = hôm nay</code> trên
             nhật ký.
           </p>
+          {!loading && slTrend.length > 1 ? (
+            <div className="mt-5 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                14 ngày gần nhất
+              </p>
+              <DashboardSlTrendChart data={slTrend} />
+            </div>
+          ) : null}
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 lg:col-span-2">
@@ -173,7 +204,11 @@ export function DashboardOverview() {
             báo cáo sau này.
           </p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
+          <>
+            <div className="mt-4">
+              <DashboardThkhStackedChart planByAgent={planByAgent} />
+            </div>
+            <div className="mt-6 overflow-x-auto">
             <table className="min-w-[720px] w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 text-left dark:border-zinc-800">
@@ -198,7 +233,8 @@ export function DashboardOverview() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </section>
 
@@ -214,7 +250,11 @@ export function DashboardOverview() {
             <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">adjusted_harvest_date</code> trên ao.
           </p>
         ) : (
-          <ul className="mt-4 space-y-4">
+          <>
+            <div className="mt-4">
+              <DashboardThdcDeltaChart ponds={thdc} maxItems={16} />
+            </div>
+            <ul className="mt-6 space-y-4">
             {thdc.slice(0, 12).map((p) => {
               const planned = p.planned_harvest_date ? new Date(p.planned_harvest_date) : null;
               const adj = p.adjusted_harvest_date ? new Date(p.adjusted_harvest_date) : null;
@@ -257,7 +297,8 @@ export function DashboardOverview() {
                 </li>
               );
             })}
-          </ul>
+            </ul>
+          </>
         )}
       </section>
     </div>

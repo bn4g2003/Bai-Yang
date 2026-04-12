@@ -84,9 +84,13 @@ export function QrScanModal({ open, onClose }: Props) {
         const back =
           cameras.find((c) => /back|rear|environment|sau/i.test(c.label)) ?? cameras[0];
 
+        const vw =
+          typeof window !== "undefined" ? Math.min(window.innerWidth, 480) : 360;
+        const box = Math.max(180, Math.min(260, Math.floor(vw * 0.72)));
+
         await html5.start(
           back.id,
-          { fps: 10, qrbox: { width: 260, height: 260 } },
+          { fps: 10, qrbox: { width: box, height: box } },
           (decodedText) => {
             const token = extractQrToken(decodedText);
             if (!token) {
@@ -154,7 +158,7 @@ export function QrScanModal({ open, onClose }: Props) {
   return (
     <div className={modalBackdrop} role="presentation">
       <div
-        className={`${modalPanel} max-w-md`}
+        className={`${modalPanel} max-h-[100dvh] w-full max-w-md overflow-y-auto rounded-none sm:max-h-[90vh] sm:rounded-xl`}
         role="dialog"
         aria-modal
         aria-labelledby={`${readerId}-title`}
@@ -194,11 +198,11 @@ export function QrScanModal({ open, onClose }: Props) {
 
         <div
           id={readerId}
-          className={`mt-4 min-h-[260px] overflow-hidden rounded-lg border border-slate-200 bg-black/5 dark:border-slate-700 dark:bg-black/20 ${starting ? "animate-pulse" : ""}`}
+          className={`mt-4 min-h-[220px] overflow-hidden rounded-lg border border-slate-200 bg-black/5 sm:min-h-[260px] dark:border-slate-700 dark:bg-black/20 ${starting ? "animate-pulse" : ""}`}
         />
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
-          <label className={btnSecondary + " cursor-pointer"}>
+        <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:flex-wrap sm:items-center dark:border-slate-800">
+          <label className={`${btnSecondary} flex min-h-11 cursor-pointer touch-manipulation items-center justify-center`}>
             <input type="file" accept="image/*" className="sr-only" onChange={(e) => void onPickFile(e)} />
             Chọn ảnh QR
           </label>
