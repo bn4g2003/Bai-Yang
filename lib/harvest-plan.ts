@@ -25,6 +25,26 @@ export function computedAdjustedYieldT(
   return null;
 }
 
+/** Sản lượng dự kiến thu (tấn): kênh điều chỉnh nếu có ngày/số điều chỉnh, không thì kênh gốc. */
+export function effectiveExpectedYieldT(p: PondRow): number | null {
+  const hasAdj = p.adjusted_harvest_date != null || p.adjusted_yield_t != null;
+  if (hasAdj) {
+    if (p.adjusted_yield_t != null) return p.adjusted_yield_t;
+    const adjCalc = computedAdjustedYieldT(p);
+    if (adjCalc != null) return adjCalc;
+  }
+  if (p.planned_yield_t != null) return p.planned_yield_t;
+  return computedPlannedYieldT(p);
+}
+
+/** max(0, dự kiến − đã thu thực tế). null nếu không ước lượng được dự kiến. */
+export function remainingHarvestYieldT(p: PondRow): number | null {
+  const exp = effectiveExpectedYieldT(p);
+  if (exp == null) return null;
+  const act = p.actual_harvest_weight_t ?? 0;
+  return Math.max(0, exp - act);
+}
+
 export type HarvestTimingKind = "overdue" | "priority" | null;
 
 /** Cảnh báo theo ngày thu (không xét khối lượng). Đã thu = không cảnh báo. */

@@ -2,6 +2,7 @@ import {
   computedAdjustedYieldT,
   computedPlannedYieldT,
   harvestTimingLabel,
+  remainingHarvestYieldT,
 } from "@/lib/harvest-plan";
 import type { AgentRow, PondRow } from "@/lib/types/pond";
 
@@ -25,6 +26,7 @@ export const HARVEST_PLAN_EXPORT_HEADERS = [
   "SL ĐC tính",
   "Đã thu — ngày",
   "Đã thu — tấn",
+  "Còn phải thu (tấn)",
   "Cảnh báo thu",
   "Ghi chú",
 ];
@@ -58,6 +60,7 @@ export function harvestPlanRowsForExport(rows: PondWithAgentExport[]): (string |
     fmtTon(computedAdjustedYieldT(r)),
     fmtDate(r.actual_harvest_date),
     r.actual_harvest_weight_t ?? "",
+    fmtTon(remainingHarvestYieldT(r)),
     harvestTimingLabel(r),
     r.process_notes ?? "",
   ]);

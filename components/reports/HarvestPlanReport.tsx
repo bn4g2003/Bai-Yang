@@ -10,6 +10,7 @@ import {
   computedPlannedYieldT,
   harvestTimingKind,
   harvestTimingLabel,
+  remainingHarvestYieldT,
 } from "@/lib/harvest-plan";
 import { HARVEST_PLAN_EXPORT_HEADERS, harvestPlanRowsForExport } from "@/lib/harvest-export-rows";
 import { ExportToolbar } from "@/components/reports/ExportToolbar";
@@ -35,6 +36,7 @@ export function HarvestPlanReport() {
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -65,6 +67,29 @@ export function HarvestPlanReport() {
     });
   }, [load]);
 
+  const markHarvestedOnReport = useCallback(async (r: ReportRow) => {
+    if (r.status === "TH" || r.actual_harvest_date) return;
+    if (!supabaseConfigured()) return;
+    const supabase = createSupabaseBrowserClient();
+    setSavingId(r.id);
+    setError(null);
+    const patch = {
+      status: "TH" as const,
+      actual_harvest_date: r.actual_harvest_date ?? localDateIso(),
+    };
+    const { data, error: upErr } = await supabase
+      .from("ponds")
+      .update(patch)
+      .eq("id", r.id)
+      .select("*, agents(name,code,region_label)")
+      .single();
+    if (upErr) setError(upErr.message);
+    else if (data) {
+      setRows((prev) => prev.map((row) => (row.id === r.id ? (data as ReportRow) : row)));
+    }
+    setSavingId(null);
+  }, []);
+
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       const d = monthRef(r);
@@ -81,6 +106,39 @@ export function HarvestPlanReport() {
 
   const columns: DataTableColumn<ReportRow>[] = useMemo(
     () => [
+      {
+        id: "mark_th",
+        header: "Đã thu",
+        cell: (r) => {
+          const done = r.status === "TH" || Boolean(r.actual_harvest_date);
+          if (done) {
+            return (
+              <input
+                type="checkbox"
+                checked
+                readOnly
+                disabled
+                className="h-4 w-4 accent-emerald-600"
+                title="Đã ghi nhận thu hoạch"
+                aria-label="Đã ghi nhận thu hoạch"
+              />
+            );
+          }
+          return (
+            <input
+              type="checkbox"
+              checked={false}
+              disabled={savingId === r.id}
+              className="h-4 w-4 accent-zinc-700"
+              title="Đánh dấu đã thu (TH, ghi ngày thu nếu chưa có)"
+              aria-label="Đánh dấu đã thu hoạch"
+              onChange={() => {
+                void markHarvestedOnReport(r);
+              }}
+            />
+          );
+        },
+      },
       {
         id: "pond_code",
         header: "Mã ao",
@@ -174,6 +232,11 @@ export function HarvestPlanReport() {
         cell: (r) => (r.actual_harvest_weight_t != null ? String(r.actual_harvest_weight_t) : "—"),
       },
       {
+        id: "remaining_yield",
+        header: "Còn phải thu (tấn)",
+        cell: (r) => fmtTon(remainingHarvestYieldT(r)),
+      },
+      {
         id: "harvest_alert",
         header: "Cảnh báo thu",
         cell: (r) => {
@@ -232,7 +295,7 @@ export function HarvestPlanReport() {
         getFilterValue: (r) => r.process_notes ?? "",
       },
     ],
-    [],
+    [markHarvestedOnReport, savingId],
   );
 
   if (!supabaseConfigured()) return null;
@@ -340,4 +403,12 @@ function fmtDate(iso: string) {
 function fmtTon(n: number | null) {
   if (n == null || Number.isNaN(n)) return "—";
   return n.toLocaleString("vi-VN", { maximumFractionDigits: 3 });
+}
+
+function localDateIso() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }

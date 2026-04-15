@@ -19,6 +19,12 @@ function fmtT(n: number | null | undefined) {
   return n.toLocaleString("vi-VN", { maximumFractionDigits: 3 });
 }
 
+function fmtDelta(n: number) {
+  if (Number.isNaN(n)) return "—";
+  const s = n.toLocaleString("vi-VN", { maximumFractionDigits: 3, signDisplay: "exceptZero" });
+  return s;
+}
+
 export function MonthlyPlanSummaryReport() {
   const [rows, setRows] = useState<MonthlyRow[]>([]);
   const [agents, setAgents] = useState<AgentRow[]>([]);
@@ -84,6 +90,8 @@ export function MonthlyPlanSummaryReport() {
       "KH gốc CT (tấn)",
       "Điều chỉnh CC (tấn)",
       "Điều chỉnh CT (tấn)",
+      "Sai khác CC — ĐC − gốc (tấn)",
+      "Sai khác CT — ĐC − gốc (tấn)",
     ],
     [],
   );
@@ -102,6 +110,8 @@ export function MonthlyPlanSummaryReport() {
       r.tons_planned_initial_ct,
       r.tons_planned_adjusted_cc,
       r.tons_planned_adjusted_ct,
+      r.tons_planned_adjusted_cc - r.tons_planned_initial_cc,
+      r.tons_planned_adjusted_ct - r.tons_planned_initial_ct,
     ]);
   }, [rows, agentNameById]);
 
@@ -129,7 +139,7 @@ export function MonthlyPlanSummaryReport() {
           Tổng tấn theo tháng của <strong className="text-zinc-700 dark:text-zinc-300">ngày thu hiệu lực</strong>{" "}
           (điều chỉnh hoặc gốc). CC = đã thả cá, CT = chưa thả. Số tấn lấy từ nhập tay hoặc công thức tồn × kỳ vọng
           (view <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">v_monthly_yield_by_agent</code>), gồm cả
-          vòng nuôi đã lưu trong lịch sử.
+          vòng nuôi đã lưu trong lịch sử. Cột sai khác = điều chỉnh − gốc theo cùng tháng/đại lý.
         </p>
         <ExportToolbar
           title={`Tổng hợp kế hoạch — năm ${year}`}
@@ -155,7 +165,7 @@ export function MonthlyPlanSummaryReport() {
               <h3 className="border-b border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
                 {aid === "__none__" ? "Chưa gán đại lý" : agentNameById.get(aid) ?? aid}
               </h3>
-              <table className="min-w-[720px] w-full border-collapse text-sm">
+              <table className="min-w-[960px] w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 text-left dark:border-zinc-800">
                     <th className="px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400">Tháng</th>
@@ -163,11 +173,15 @@ export function MonthlyPlanSummaryReport() {
                     <th className="px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400">KH gốc · CT (tấn)</th>
                     <th className="px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400">Điều chỉnh · CC (tấn)</th>
                     <th className="px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400">Điều chỉnh · CT (tấn)</th>
+                    <th className="px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400">Sai khác · CC (tấn)</th>
+                    <th className="px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400">Sai khác · CT (tấn)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {agentRows.map((cell) => {
                     const mb = cell.month_bucket.slice(0, 10);
+                    const dcc = cell.tons_planned_adjusted_cc - cell.tons_planned_initial_cc;
+                    const dct = cell.tons_planned_adjusted_ct - cell.tons_planned_initial_ct;
                     return (
                       <tr key={mb} className="border-b border-zinc-100 dark:border-zinc-800/80">
                         <td className="px-3 py-2 tabular-nums text-zinc-800 dark:text-zinc-200">
@@ -180,6 +194,8 @@ export function MonthlyPlanSummaryReport() {
                         <td className="px-3 py-2 tabular-nums">{fmtT(cell.tons_planned_initial_ct)}</td>
                         <td className="px-3 py-2 tabular-nums">{fmtT(cell.tons_planned_adjusted_cc)}</td>
                         <td className="px-3 py-2 tabular-nums">{fmtT(cell.tons_planned_adjusted_ct)}</td>
+                        <td className="px-3 py-2 tabular-nums">{fmtDelta(dcc)}</td>
+                        <td className="px-3 py-2 tabular-nums">{fmtDelta(dct)}</td>
                       </tr>
                     );
                   })}
