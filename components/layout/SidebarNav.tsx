@@ -55,8 +55,12 @@ export function SidebarNav({ groups, collapsed, onNavigate }: Props) {
     setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    // Chỉ khớp đúng trang mục lục, tránh sáng cả “Hướng dẫn” khi đang ở /bao-cao/...
+    if (href === "/bao-cao") return pathname === "/bao-cao";
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   return (
     <nav className="flex flex-col gap-0.5 px-2 py-4" aria-label="Điều hướng chính">

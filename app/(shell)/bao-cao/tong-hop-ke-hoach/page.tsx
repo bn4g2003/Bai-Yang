@@ -8,7 +8,8 @@ export default function TongHopKeHoachPage() {
       <PageHeader
         breadcrumbs={[
           { label: "Trang chủ", href: "/" },
-          { label: "Báo cáo tổng hợp kế hoạch" },
+          { label: "Báo cáo", href: "/bao-cao" },
+          { label: "Tổng hợp kế hoạch" },
         ]}
         title="Báo cáo tổng hợp kế hoạch"
         description="Tổng sản lượng dự kiến theo tháng và đại lý: kế hoạch ban đầu vs điều chỉnh, tách ao đã thả cá (CC) và chưa thả (CT)."

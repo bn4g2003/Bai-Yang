@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DashboardSlTrendChart, type SlTrendPoint } from "@/components/charts/DashboardSlTrendChart";
 import { DashboardThdcDeltaChart } from "@/components/charts/DashboardThdcDeltaChart";
 import { DashboardThkhStackedChart } from "@/components/charts/DashboardThkhStackedChart";
+import { DashboardSection } from "@/components/dashboard/DashboardSection";
 import { createSupabaseBrowserClient, supabaseConfigured } from "@/lib/supabase/client";
 import type { PondRow } from "@/lib/types/pond";
 
@@ -30,6 +31,44 @@ type HarvestTimingRow = {
 
 function isoToday() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function formatTodayVi() {
+  return new Date().toLocaleDateString("vi-VN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function StatTile({
+  label,
+  value,
+  loading,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string | number;
+  loading: boolean;
+  tone?: "neutral" | "amber" | "emerald";
+}) {
+  const toneClass =
+    tone === "amber"
+      ? "border-amber-100 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20"
+      : tone === "emerald"
+        ? "border-emerald-100 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/20"
+        : "border-slate-100 bg-slate-50/90 dark:border-slate-800 dark:bg-slate-900/50";
+  return (
+    <div className={`rounded-xl border px-3 py-3 text-center ${toneClass}`}>
+      <div className="text-xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+        {loading ? <span className="inline-block h-8 w-12 animate-pulse rounded bg-slate-200/80 dark:bg-slate-700" /> : value}
+      </div>
+      <div className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {label}
+      </div>
+    </div>
+  );
 }
 
 export function DashboardOverview() {
@@ -136,251 +175,341 @@ export function DashboardOverview() {
     return [...m.values()];
   }, [plans]);
 
+  const harvestUrgentCount = useMemo(() => {
+    return harvestTiming.filter((h) => h.days_until_harvest < 0 || h.days_until_harvest <= 7).length;
+  }, [harvestTiming]);
+
   if (!supabaseConfigured()) {
     return null;
   }
 
+  const todayBadge = (
+    <span className="inline-flex max-w-full items-center rounded-full border border-slate-200/90 bg-white px-3 py-1.5 text-left text-xs font-medium leading-snug text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+      {formatTodayVi()}
+    </span>
+  );
+
+  const harvestLegend = (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="rounded-full border border-red-200/90 bg-red-50 px-2.5 py-0.5 text-[11px] font-medium text-red-900 dark:border-red-900/60 dark:bg-red-950/35 dark:text-red-100">
+        Quá hạn
+      </span>
+      <span className="rounded-full border border-amber-200/90 bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100">
+        Ưu tiên (≤7 ngày)
+      </span>
+      <span className="rounded-full border border-slate-200/90 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
+        Còn lại
+      </span>
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-100">
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-100">
           {error}
         </p>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 lg:col-span-1">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">SL ngày</h2>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">
-            {loading ? "…" : (sl?.total_feed_kg ?? 0).toLocaleString("vi-VN")}
-            <span className="ml-1 text-base font-normal text-zinc-500">kg thức ăn</span>
-          </p>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Hao hụt trong ngày:{" "}
-            <span className="font-medium text-zinc-900 dark:text-zinc-100">
-              {loading ? "…" : (sl?.total_dead_loss ?? 0).toLocaleString("vi-VN")} con
-            </span>
-          </p>
-          <p className="mt-3 text-xs text-zinc-500">
-            Theo <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">log_date = hôm nay</code> trên
-            nhật ký.
-          </p>
-          {!loading && slTrend.length > 1 ? (
-            <div className="mt-5 border-t border-zinc-100 pt-4 dark:border-zinc-800">
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                14 ngày gần nhất
+      <DashboardSection
+        title="Hôm nay"
+        description="Số liệu gộp từ nhật ký có ngày ghi trùng hôm nay; cảnh báo môi trường theo ngưỡng đã cấu hình."
+        headerRight={todayBadge}
+      >
+        <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-3">
+          <StatTile label="Ao trong hệ thống" value={ponds.length} loading={loading} />
+          <StatTile label="Cảnh báo môi trường" value={alerts.length} loading={loading} tone="amber" />
+          <StatTile label="Ao cần chú ý thu" value={harvestUrgentCount} loading={loading} tone="emerald" />
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-1">
+            <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Thức ăn &amp; hao hụt
               </p>
-              <DashboardSlTrendChart data={slTrend} />
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+                {loading ? (
+                  <span className="inline-block h-9 w-28 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+                ) : (
+                  (sl?.total_feed_kg ?? 0).toLocaleString("vi-VN")
+                )}
+                <span className="ml-1.5 text-base font-normal text-slate-500">kg</span>
+              </p>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                Hao hụt trong ngày:{" "}
+                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                  {loading ? "…" : (sl?.total_dead_loss ?? 0).toLocaleString("vi-VN")} con
+                </span>
+              </p>
+              <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                Chỉ tính các dòng nhật ký có <span className="font-medium text-slate-600 dark:text-slate-300">ngày nhật ký = hôm nay</span>.
+              </p>
             </div>
-          ) : null}
-        </div>
+            {!loading && slTrend.length > 1 ? (
+              <div className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Xu hướng 14 ngày
+                </p>
+                <div className="mt-3">
+                  <DashboardSlTrendChart data={slTrend} />
+                </div>
+              </div>
+            ) : null}
+          </div>
 
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 lg:col-span-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            Cảnh báo môi trường (DO, NH3, pH)
-          </h2>
-          {loading ? (
-            <p className="mt-3 text-sm text-zinc-500">Đang tải…</p>
-          ) : alerts.length === 0 ? (
-            <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">
-              Không có ao vượt ngưỡng hôm nay (theo bản ghi mới nhất / ngày).
+          <div className="lg:col-span-2">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Cảnh báo môi trường (DO, pH, NH3…)
             </p>
-          ) : (
-            <ul className="mt-3 space-y-2 text-sm">
-              {alerts.map((a) => {
-                const code = ponds.find((p) => p.id === a.pond_id)?.pond_code ?? a.pond_id.slice(0, 8);
-                return (
-                  <li
-                    key={`${a.pond_id}-${a.log_date}`}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950/30"
-                  >
-                    <span className="font-medium text-amber-950 dark:text-amber-100">Mã ao {code}</span>
-                    <span className="text-amber-900 dark:text-amber-200">{a.alert_reason}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <p className="mt-3 text-xs text-zinc-500">
-            Ngưỡng lấy từ{" "}
-            <Link href="/cai-dat" className="text-blue-600 underline dark:text-blue-400">
-              Cài đặt
-            </Link>
-            .
-          </p>
+            {loading ? (
+              <div className="space-y-2">
+                <div className="h-12 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+                <div className="h-12 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+              </div>
+            ) : alerts.length === 0 ? (
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-5 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/25 dark:text-emerald-100">
+                <p className="font-medium">Không có ao vượt ngưỡng hôm nay.</p>
+                <p className="mt-1 text-xs text-emerald-800/90 dark:text-emerald-200/90">
+                  Dựa trên bản ghi nhật ký mới nhất theo từng ao. Chỉnh ngưỡng tại{" "}
+                  <Link href="/cai-dat" className="font-semibold underline underline-offset-2">
+                    Cài đặt &amp; ngưỡng
+                  </Link>
+                  .
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-2.5">
+                {alerts.map((a) => {
+                  const code = ponds.find((p) => p.id === a.pond_id)?.pond_code ?? a.pond_id.slice(0, 8);
+                  return (
+                    <li
+                      key={`${a.pond_id}-${a.log_date}`}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm dark:border-amber-900/50 dark:bg-amber-950/30"
+                    >
+                      <span className="font-mono font-semibold text-amber-950 dark:text-amber-100">{code}</span>
+                      <span className="text-right text-amber-900 dark:text-amber-200">{a.alert_reason}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
-      </section>
+      </DashboardSection>
 
-      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Cảnh báo thu hoạch (theo ngày)
-        </h2>
+      <DashboardSection
+        title="Cảnh báo thu hoạch"
+        description="Ao đã có ngày thu hiệu lực, chưa ghi ngày thu thực tế — sắp xếp theo mức độ gấp."
+        headerRight={harvestLegend}
+      >
         {loading ? (
-          <p className="mt-3 text-sm text-zinc-500">Đang tải…</p>
+          <div className="space-y-2">
+            <div className="h-14 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+            <div className="h-14 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+          </div>
         ) : harvestTiming.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-500">
-            Không có ao nào trong cửa sổ kế hoạch thu (CC/CT, đã có ngày thu, chưa ghi ngày thu thực tế). Cập nhật
-            tại{" "}
-            <Link href="/vung-nuoi" className="text-blue-600 underline dark:text-blue-400">
-              Quản lý vùng nuôi
-            </Link>{" "}
-            hoặc chạy migration view <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">v_pond_harvest_timing</code>.
-          </p>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-5 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
+            <p>Chưa có ao nào trong danh sách theo dõi thu (CC/CT, có ngày thu, chưa ghi thu thực tế).</p>
+            <p className="mt-2 text-xs">
+              Cập nhật kế hoạch thu tại{" "}
+              <Link href="/vung-nuoi" className="font-semibold text-blue-600 underline dark:text-blue-400">
+                Quản lý vùng nuôi
+              </Link>
+              . Nếu dữ liệu đã đủ mà vẫn trống, kiểm tra view{" "}
+              <code className="rounded bg-slate-200/80 px-1 text-[11px] dark:bg-slate-800">v_pond_harvest_timing</code> trên
+              cơ sở dữ liệu.
+            </p>
+          </div>
         ) : (
           <>
-            <p className="mt-2 text-xs text-zinc-500">
-              Đỏ: quá hạn so với ngày thu hiệu lực. Vàng: trong 7 ngày tới (ưu tiên thu). Nguồn:{" "}
-              <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">v_pond_harvest_timing</code>.
-            </p>
-            <ul className="mt-3 space-y-2 text-sm">
+            <ul className="grid gap-2 sm:grid-cols-2">
               {harvestTiming.slice(0, 16).map((h) => {
                 const overdue = h.days_until_harvest < 0;
                 const priority = !overdue && h.days_until_harvest <= 7;
                 const tone = overdue
-                  ? "border-red-200 bg-red-50 text-red-950 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100"
+                  ? "border-red-200/90 bg-red-50/90 text-red-950 dark:border-red-900/60 dark:bg-red-950/35 dark:text-red-50"
                   : priority
-                    ? "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
-                    : "border-zinc-100 bg-zinc-50 text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200";
+                    ? "border-amber-200/90 bg-amber-50/90 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-50"
+                    : "border-slate-100 bg-slate-50/80 text-slate-800 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-200";
                 return (
                   <li
                     key={h.pond_id}
-                    className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 ${tone}`}
+                    className={`flex flex-col gap-1 rounded-xl border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${tone}`}
                   >
-                    <span className="font-mono font-medium">{h.pond_code}</span>
-                    <span className="text-xs">
-                      Thu hiệu lực:{" "}
+                    <span className="font-mono text-sm font-semibold">{h.pond_code}</span>
+                    <span className="text-xs sm:text-right">
+                      <span className="text-slate-600 dark:text-slate-300">Thu hiệu lực: </span>
                       {new Date(h.effective_harvest_date + "T12:00:00").toLocaleDateString("vi-VN")}
                       {overdue ? (
-                        <span className="ml-2 font-medium"> · Quá {Math.abs(h.days_until_harvest)} ngày</span>
+                        <span className="ml-2 font-semibold">· Quá {Math.abs(h.days_until_harvest)} ngày</span>
                       ) : (
-                        <span className="ml-2 font-medium"> · Còn {h.days_until_harvest} ngày</span>
+                        <span className="ml-2 font-semibold">· Còn {h.days_until_harvest} ngày</span>
                       )}
                     </span>
                   </li>
                 );
               })}
             </ul>
-            <p className="mt-3 text-xs text-zinc-500">
-              Báo cáo chi tiết:{" "}
-              <Link href="/bao-cao/ke-hoach-thu-hoach" className="text-blue-600 underline dark:text-blue-400">
-                Kế hoạch thu &amp; sản lượng
+            <p className="mt-4 text-center text-xs text-slate-500 dark:text-slate-400">
+              Chi tiết đầy đủ:{" "}
+              <Link href="/bao-cao/ke-hoach-thu-hoach" className="font-semibold text-blue-600 underline dark:text-blue-400">
+                Báo cáo kế hoạch thu &amp; sản lượng
               </Link>
-              .
             </p>
           </>
         )}
-      </section>
+      </DashboardSection>
 
-      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          THKH — Kế hoạch tấn/tháng theo đại lý ({year})
-        </h2>
+      <DashboardSection
+        title={`Kế hoạch tấn theo tháng — ${year}`}
+        description="Mục tiêu THKH đã nhập theo đại lý (tấn/tháng). So sánh nhanh phân bổ theo quý."
+      >
         {planByAgent.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-500">
-            Chưa có dòng kế hoạch. Nhập tại{" "}
-            <Link href="/bang-mau/ke-hoach-thkh" className="text-blue-600 underline dark:text-blue-400">
-              THKH mục tiêu / tháng
-            </Link>{" "}
-            (bảng <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">monthly_harvest_plans</code>).
-          </p>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-5 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
+            <p>Chưa có dòng kế hoạch cho năm này.</p>
+            <p className="mt-2 text-xs">
+              Nhập tại{" "}
+              <Link href="/bang-mau/ke-hoach-thkh" className="font-semibold text-blue-600 underline dark:text-blue-400">
+                THKH mục tiêu / tháng
+              </Link>
+              .
+            </p>
+          </div>
         ) : (
           <>
-            <div className="mt-4">
-              <DashboardThkhStackedChart planByAgent={planByAgent} />
+            <div className="-mx-1 overflow-x-auto pb-1">
+              <div className="min-h-[220px] px-1">
+                <DashboardThkhStackedChart planByAgent={planByAgent} />
+              </div>
             </div>
-            <div className="mt-6 overflow-x-auto">
-            <table className="min-w-[720px] w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 text-left dark:border-zinc-800">
-                  <th className="py-2 pr-3 font-medium text-zinc-600 dark:text-zinc-400">Đại lý</th>
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <th key={i} className="px-1 py-2 text-center font-medium text-zinc-600 dark:text-zinc-400">
-                      T{i + 1}
+            <div className="mt-6 overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
+              <table className="min-w-[720px] w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/90 text-left dark:border-slate-800 dark:bg-slate-900/80">
+                    <th className="sticky left-0 z-10 bg-slate-50/95 py-3 pl-4 pr-3 font-semibold text-slate-700 dark:bg-slate-900/95 dark:text-slate-200">
+                      Đại lý
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {planByAgent.map((row) => (
-                  <tr key={row.code} className="border-b border-zinc-100 dark:border-zinc-800/80">
-                    <td className="py-2 pr-3 font-medium text-zinc-900 dark:text-zinc-100">{row.name}</td>
-                    {row.months.map((v, i) => (
-                      <td key={i} className="px-1 py-2 text-center tabular-nums text-zinc-700 dark:text-zinc-300">
-                        {v ? v.toLocaleString("vi-VN", { maximumFractionDigits: 1 }) : "—"}
-                      </td>
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <th
+                        key={i}
+                        className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400"
+                      >
+                        T{i + 1}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {planByAgent.map((row) => (
+                    <tr
+                      key={row.code}
+                      className="border-b border-slate-100 transition-colors hover:bg-slate-50/50 dark:border-slate-800/80 dark:hover:bg-slate-900/40"
+                    >
+                      <td className="sticky left-0 z-10 bg-white py-2.5 pl-4 pr-3 font-medium text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+                        {row.name}
+                      </td>
+                      {row.months.map((v, i) => (
+                        <td
+                          key={i}
+                          className="px-2 py-2.5 text-center tabular-nums text-slate-700 dark:text-slate-300"
+                        >
+                          {v ? v.toLocaleString("vi-VN", { maximumFractionDigits: 1 }) : "—"}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </>
         )}
-      </section>
+      </DashboardSection>
 
-      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          THDC — Ngày thu dự kiến: kế hoạch gốc vs điều chỉnh
-        </h2>
+      <DashboardSection
+        title="Lệch ngày thu: gốc và điều chỉnh"
+        description="Chỉ các ao đã nhập đủ hai mốc ngày thu — để đối chiếu nhanh độ trễ giữa kế hoạch ban đầu và điều chỉnh."
+      >
         {loading ? (
-          <p className="mt-3 text-sm text-zinc-500">Đang tải…</p>
+          <div className="h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
         ) : thdc.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-500">
-            Chưa có ao nào có đủ hai ngày (gốc + điều chỉnh). Cập nhật cột{" "}
-            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">adjusted_harvest_date</code> trên ao.
-          </p>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-5 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
+            <p>Chưa có ao nào có đủ ngày thu gốc và ngày thu điều chỉnh.</p>
+            <p className="mt-2 text-xs">
+              Bổ sung ngày trên form ao tại{" "}
+              <Link href="/vung-nuoi" className="font-semibold text-blue-600 underline dark:text-blue-400">
+                Quản lý vùng nuôi
+              </Link>
+              .
+            </p>
+          </div>
         ) : (
           <>
-            <div className="mt-4">
+            <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
               <DashboardThdcDeltaChart ponds={thdc} maxItems={16} />
             </div>
-            <ul className="mt-6 space-y-4">
-            {thdc.slice(0, 12).map((p) => {
-              const planned = p.planned_harvest_date ? new Date(p.planned_harvest_date) : null;
-              const adj = p.adjusted_harvest_date ? new Date(p.adjusted_harvest_date) : null;
-              const delta =
-                planned && adj
-                  ? Math.round((adj.getTime() - planned.getTime()) / (1000 * 60 * 60 * 24))
-                  : 0;
-              const barW = Math.min(100, 50 + Math.abs(delta));
-              return (
-                <li key={p.id} className="rounded-xl border border-zinc-100 p-3 dark:border-zinc-800">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-mono text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                      {p.pond_code}
-                    </span>
-                    <span className="text-xs text-zinc-500">
-                      Lệch {delta >= 0 ? "+" : ""}
-                      {delta} ngày
-                    </span>
-                  </div>
-                  <div className="mt-2 flex gap-2 text-xs">
-                    <div className="flex-1">
-                      <div className="text-zinc-500">Gốc</div>
-                      <div className="font-medium text-zinc-800 dark:text-zinc-200">
-                        {planned ? planned.toLocaleDateString("vi-VN") : "—"}
+            <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {thdc.slice(0, 12).map((p) => {
+                const planned = p.planned_harvest_date ? new Date(p.planned_harvest_date) : null;
+                const adj = p.adjusted_harvest_date ? new Date(p.adjusted_harvest_date) : null;
+                const delta =
+                  planned && adj
+                    ? Math.round((adj.getTime() - planned.getTime()) / (1000 * 60 * 60 * 24))
+                    : 0;
+                const barW = Math.min(100, 50 + Math.abs(delta));
+                return (
+                  <li
+                    key={p.id}
+                    className="rounded-xl border border-slate-100 bg-slate-50/30 p-4 dark:border-slate-800 dark:bg-slate-900/30"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-mono text-sm font-semibold text-slate-900 dark:text-slate-50">
+                        {p.pond_code}
+                      </span>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          delta === 0
+                            ? "bg-slate-200/80 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+                            : delta > 0
+                              ? "bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100"
+                              : "bg-sky-100 text-sky-900 dark:bg-sky-950/50 dark:text-sky-100"
+                        }`}
+                      >
+                        {delta >= 0 ? "+" : ""}
+                        {delta} ngày
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <div className="font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Gốc
+                        </div>
+                        <div className="mt-0.5 font-semibold text-slate-800 dark:text-slate-200">
+                          {planned ? planned.toLocaleDateString("vi-VN") : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Điều chỉnh
+                        </div>
+                        <div className="mt-0.5 font-semibold text-blue-700 dark:text-blue-300">
+                          {adj ? adj.toLocaleDateString("vi-VN") : "—"}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex-1">
-                      <div className="text-zinc-500">Điều chỉnh</div>
-                      <div className="font-medium text-blue-700 dark:text-blue-300">
-                        {adj ? adj.toLocaleDateString("vi-VN") : "—"}
-                      </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all"
+                        style={{ width: `${barW}%` }}
+                      />
                     </div>
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                    <div
-                      className="h-full rounded-full bg-blue-500 transition-all"
-                      style={{ width: `${barW}%` }}
-                    />
-                  </div>
-                </li>
-              );
-            })}
+                  </li>
+                );
+              })}
             </ul>
           </>
         )}
-      </section>
+      </DashboardSection>
     </div>
   );
 }

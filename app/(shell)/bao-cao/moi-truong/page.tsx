@@ -8,7 +8,7 @@ export default function BaoCaoMoiTruongPage() {
       <PageHeader
         breadcrumbs={[
           { label: "Trang chủ", href: "/" },
-          { label: "Báo cáo" },
+          { label: "Báo cáo", href: "/bao-cao" },
           { label: "Môi trường" },
         ]}
         title="Báo cáo môi trường"

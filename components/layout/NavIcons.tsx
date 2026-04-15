@@ -50,6 +50,17 @@ export function NavIcon({ id, className = "" }: { id: NavIconId; className?: str
           />
         </svg>
       );
+    case "reportGuide":
+      return (
+        <svg className={c} fill="none" viewBox="0 0 24 24" aria-hidden>
+          <path
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 4h6m-6-8h6"
+          />
+        </svg>
+      );
     case "reportHarvest":
       return (
         <svg className={c} fill="none" viewBox="0 0 24 24" aria-hidden>
