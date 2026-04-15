@@ -9,7 +9,7 @@ import { supabaseConfigured } from "@/lib/supabase/client";
 export default function OverviewPage() {
   const configured = supabaseConfigured();
   return (
-    <div className="mx-auto max-w-6xl space-y-10 pb-4">
+    <div className="space-y-10 pb-4">
       <PageHeader
         breadcrumbs={[{ label: "Trang chủ" }]}
         eyebrow="Tổng quan vận hành"

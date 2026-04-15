@@ -10,8 +10,9 @@ export default function CaiDatPage() {
           { label: "Trang chủ", href: "/" },
           { label: "Cài đặt & danh mục" },
         ]}
+        eyebrow="Cấu hình hệ thống"
         title="Cài đặt & danh mục"
-        description="Ngưỡng môi trường, preset công thức; user và phân quyền qua Supabase."
+        description="Ngưỡng cảnh báo môi trường, preset công thức; tài khoản và phân quyền quản lý trên Supabase."
       />
       <SupabaseConfigBanner />
       <SettingsScreen />

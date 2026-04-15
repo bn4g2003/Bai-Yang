@@ -65,7 +65,7 @@ export function AppShell({ children }: Props) {
   const showMobileDrawer = isMobile && mobileOpen;
 
   return (
-    <div className="flex min-h-full flex-1">
+    <div className="flex min-h-full w-full min-w-0 flex-1 md:items-start">
       {showMobileDrawer ? (
         <button
           type="button"
@@ -76,9 +76,9 @@ export function AppShell({ children }: Props) {
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-60 max-w-[85vw] flex-col border-r border-slate-200/90 bg-slate-50/95 transition-[width,transform] duration-200 dark:border-slate-800 dark:bg-slate-950 md:static ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-60 max-w-[85vw] flex-col border-r border-slate-200/90 bg-slate-50/95 backdrop-blur-sm transition-[width,transform] duration-200 dark:border-slate-800 dark:bg-slate-950 md:sticky md:top-0 md:z-20 md:h-[100dvh] md:max-h-[100dvh] md:shrink-0 md:translate-x-0 ${
           navIconOnly ? "md:w-[4.5rem]" : "md:w-60"
-        } ${isMobile ? (mobileOpen ? "translate-x-0" : "-translate-x-full") : ""} md:translate-x-0`}
+        } ${isMobile ? (mobileOpen ? "translate-x-0" : "-translate-x-full") : ""}`}
       >
         <div
           className={`flex h-14 shrink-0 items-center border-b border-slate-200/90 px-3 dark:border-slate-800 ${
@@ -152,7 +152,9 @@ export function AppShell({ children }: Props) {
           </button>
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-50">Ao nuôi</span>
         </header>
-        <main className="min-w-0 flex-1 bg-[var(--background)] p-4 md:p-8">{children}</main>
+        <main className="min-w-0 flex-1 bg-[var(--background)] p-4 md:px-8 md:py-8 lg:px-10">
+          <div className="mx-auto w-full max-w-7xl">{children}</div>
+        </main>
       </div>
     </div>
   );

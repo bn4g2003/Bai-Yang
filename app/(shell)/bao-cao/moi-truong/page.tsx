@@ -4,13 +4,14 @@ import { SupabaseConfigBanner } from "@/components/system/SupabaseConfigBanner";
 
 export default function BaoCaoMoiTruongPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         breadcrumbs={[
           { label: "Trang chủ", href: "/" },
           { label: "Báo cáo", href: "/bao-cao" },
           { label: "Môi trường" },
         ]}
+        eyebrow="Từ nhật ký"
         title="Báo cáo môi trường"
         description="Tổng hợp nhanh các chỉ số môi trường đã nhập qua nhật ký ao."
       />

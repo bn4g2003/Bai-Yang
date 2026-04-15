@@ -4,7 +4,7 @@ import { DesktopQrScanButton } from "@/components/qr/DesktopQrScanButton";
 
 export function NhatKyToolbar() {
   return (
-    <div className="mb-4 flex justify-end">
+    <div className="flex shrink-0 justify-end">
       <DesktopQrScanButton />
     </div>
   );

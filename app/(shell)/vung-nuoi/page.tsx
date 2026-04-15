@@ -10,8 +10,9 @@ export default function VungNuoiPage() {
           { label: "Trang chủ", href: "/" },
           { label: "Quản lý vùng nuôi" },
         ]}
+        eyebrow="Danh mục ao"
         title="Quản lý ao & QR Code"
-        description="Số hóa biểu mẫu cấp mã vùng nuôi: thêm ao, trạng thái CC/CT/TH, in QR dán tại ao."
+        description="Thêm và cập nhật ao, trạng thái CC/CT/TH, in QR dán tại ao; mở lịch sử nhật ký từng ao từ bảng."
       />
       <SupabaseConfigBanner />
       <PondManagement />
