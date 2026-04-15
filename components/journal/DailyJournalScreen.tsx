@@ -43,6 +43,7 @@ export function DailyJournalScreen({ token }: { token: string }) {
   });
   const [fish, setFish] = useState({
     dead_loss_count: "",
+    remaining_fish_count: "",
     sample_avg_g_per_fish: "",
     disease_signs: "",
     treatment: "",
@@ -69,7 +70,13 @@ export function DailyJournalScreen({ token }: { token: string }) {
       setError("Không tìm thấy ao với mã QR này.");
       return;
     }
-    setPond(data as PondRow);
+    const row = data as PondRow;
+    setPond(row);
+    setFish((f) => ({
+      ...f,
+      remaining_fish_count:
+        row.estimated_fish_count != null ? String(row.estimated_fish_count) : "",
+    }));
   }, [token]);
 
   useEffect(() => {
@@ -116,6 +123,7 @@ export function DailyJournalScreen({ token }: { token: string }) {
       do_mg_l: parseNum(env.do_mg_l),
       h2s: parseNum(env.h2s),
       dead_loss_count: parseIntSafe(fish.dead_loss_count),
+      remaining_fish_count: parseIntSafe(fish.remaining_fish_count),
       sample_avg_g_per_fish: parseNum(fish.sample_avg_g_per_fish),
       disease_signs: fish.disease_signs.trim() || null,
       treatment: fish.treatment.trim() || null,
@@ -129,13 +137,22 @@ export function DailyJournalScreen({ token }: { token: string }) {
     setSavedAt(new Date().toLocaleString("vi-VN"));
 
     const sampleG = parseNum(fish.sample_avg_g_per_fish);
-    const est = parseIntSafe(fish.dead_loss_count);
-    if (sampleG != null || est != null) {
-      const patch: Record<string, unknown> = {};
-      if (sampleG != null) {
-        patch.current_avg_weight_kg = sampleG / 1000;
+    const remaining = parseIntSafe(fish.remaining_fish_count);
+    const patch: Record<string, unknown> = {};
+    if (sampleG != null) {
+      patch.current_avg_weight_kg = sampleG / 1000;
+    }
+    if (remaining != null) {
+      patch.estimated_fish_count = remaining;
+      const wKg =
+        sampleG != null ? sampleG / 1000 : pond.current_avg_weight_kg != null ? pond.current_avg_weight_kg : null;
+      if (wKg != null && wKg > 0) {
+        patch.current_biomass_t = (remaining * wKg) / 1000;
       }
+    }
+    if (Object.keys(patch).length > 0) {
       await supabase.from("ponds").update(patch).eq("id", pond.id);
+      setPond((prev) => (prev ? { ...prev, ...patch } as PondRow : prev));
     }
   };
 
@@ -297,6 +314,12 @@ export function DailyJournalScreen({ token }: { token: string }) {
 
         {tab === "fish" ? (
           <div className="space-y-3">
+            <Field
+              label="Số cá còn tồn (con)"
+              value={fish.remaining_fish_count}
+              onChange={(v) => setFish((c) => ({ ...c, remaining_fish_count: v }))}
+              inputMode="numeric"
+            />
             <Field
               label="Số cá chết / hao hụt"
               value={fish.dead_loss_count}

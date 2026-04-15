@@ -23,6 +23,10 @@ export type PondRow = {
   planned_harvest_date: string | null;
   planned_yield_t: number | null;
   adjusted_harvest_date: string | null;
+  expected_harvest_weight_kg?: number | null;
+  adjusted_yield_t?: number | null;
+  actual_harvest_date?: string | null;
+  actual_harvest_weight_t?: number | null;
   current_avg_weight_kg: number | null;
   estimated_fish_count: number | null;
   current_biomass_t: number | null;
@@ -40,6 +44,32 @@ export type AgentRow = {
   name: string;
   region_label: string | null;
   created_at: string;
+};
+
+export type MonthlyHarvestPlanRow = {
+  id: string;
+  agent_id: string;
+  year: number;
+  month: number;
+  planned_tonnage: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PondProductionCycleRow = {
+  id: string;
+  pond_id: string;
+  cycle_title: string | null;
+  stocking_date: string | null;
+  planned_harvest_date: string | null;
+  adjusted_harvest_date: string | null;
+  planned_yield_t: number | null;
+  adjusted_yield_t: number | null;
+  actual_harvest_date: string | null;
+  actual_harvest_weight_t: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type DailyPondLogInsert = {
@@ -60,7 +90,26 @@ export type DailyPondLogInsert = {
   do_mg_l?: number | null;
   h2s?: number | null;
   dead_loss_count?: number | null;
+  remaining_fish_count?: number | null;
   sample_avg_g_per_fish?: number | null;
   disease_signs?: string | null;
   treatment?: string | null;
+};
+
+export type DailyPondLogRow = {
+  id: string;
+  pond_id: string;
+  log_date: string;
+  recorded_at: string;
+  feed_type: string | null;
+  feed_kg: number | null;
+  temp_c: number | null;
+  ph: number | null;
+  do_mg_l: number | null;
+  nh3: number | null;
+  dead_loss_count: number | null;
+  remaining_fish_count?: number | null;
+  sample_avg_g_per_fish: number | null;
+  disease_signs: string | null;
+  treatment: string | null;
 };

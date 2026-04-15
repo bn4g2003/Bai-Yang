@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
 INSERT INTO public.app_settings (key, value)
 VALUES (
   'env_thresholds',
-  '{"do_min": 4, "nh3_max": 0.1, "ph_min": 6.5, "ph_max": 8.5}'::jsonb
+  '{"do_min": 4, "nh3_max": 0.1, "ph_min": 6.5, "ph_max": 8.5, "temp_min": 26, "temp_max": 34}'::jsonb
 )
 ON CONFLICT (key) DO NOTHING;
 
@@ -56,6 +56,10 @@ CREATE TABLE IF NOT EXISTS public.ponds (
   planned_harvest_date date,
   planned_yield_t numeric,
   adjusted_harvest_date date,
+  expected_harvest_weight_kg numeric,
+  adjusted_yield_t numeric,
+  actual_harvest_date date,
+  actual_harvest_weight_t numeric,
   current_avg_weight_kg numeric,
   estimated_fish_count integer,
   current_biomass_t numeric,
@@ -100,6 +104,7 @@ CREATE TABLE IF NOT EXISTS public.daily_pond_logs (
   h2s numeric,
 
   dead_loss_count integer,
+  remaining_fish_count integer,
   sample_avg_g_per_fish numeric,
   disease_signs text,
   treatment text,
@@ -123,6 +128,30 @@ CREATE TABLE IF NOT EXISTS public.monthly_harvest_plans (
 );
 
 CREATE INDEX IF NOT EXISTS idx_monthly_harvest_plans_y ON public.monthly_harvest_plans (year, month);
+
+-- --- Lịch sử vòng nuôi trên từng ao (nhiều lứa/năm) ---
+CREATE TABLE IF NOT EXISTS public.pond_production_cycles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  pond_id uuid NOT NULL REFERENCES public.ponds (id) ON DELETE CASCADE,
+  cycle_title text,
+  stocking_date date,
+  planned_harvest_date date,
+  adjusted_harvest_date date,
+  planned_yield_t numeric,
+  adjusted_yield_t numeric,
+  actual_harvest_date date,
+  actual_harvest_weight_t numeric,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pond_production_cycles_pond ON public.pond_production_cycles (pond_id, created_at DESC);
+
+DROP TRIGGER IF EXISTS tr_pond_production_cycles_updated ON public.pond_production_cycles;
+CREATE TRIGGER tr_pond_production_cycles_updated
+  BEFORE UPDATE ON public.pond_production_cycles
+  FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
 
 -- --- Công thức / tham số (màn Cài đặt — lưu key-value) ---
 CREATE TABLE IF NOT EXISTS public.calculation_presets (
@@ -176,7 +205,10 @@ FROM public.daily_pond_logs
 GROUP BY 1;
 
 -- --- View: cảnh báo môi trường từ bản ghi mới nhất mỗi ao / ngày ---
-CREATE OR REPLACE VIEW public.v_env_alerts_latest AS
+-- DROP trước khi CREATE để tránh lỗi 42P16 khi nâng cấp DB đã có view cũ (cột khác thứ tự).
+DROP VIEW IF EXISTS public.v_env_alerts_latest CASCADE;
+
+CREATE VIEW public.v_env_alerts_latest AS
 WITH ranked AS (
   SELECT
     l.*,
@@ -188,10 +220,13 @@ SELECT
   r.pond_id,
   r.log_date,
   r.recorded_at,
+  r.temp_c,
   r.do_mg_l,
   r.nh3,
   r.ph,
   CASE
+    WHEN r.temp_c IS NOT NULL AND s.value ? 'temp_min' AND r.temp_c < (s.value->>'temp_min')::numeric THEN 'Nhiệt độ thấp'
+    WHEN r.temp_c IS NOT NULL AND s.value ? 'temp_max' AND r.temp_c > (s.value->>'temp_max')::numeric THEN 'Nhiệt độ cao'
     WHEN r.do_mg_l IS NOT NULL AND r.do_mg_l < (s.value->>'do_min')::numeric THEN 'DO thấp'
     WHEN r.nh3 IS NOT NULL AND r.nh3 > (s.value->>'nh3_max')::numeric THEN 'NH3 cao'
     WHEN r.ph IS NOT NULL AND (r.ph < (s.value->>'ph_min')::numeric OR r.ph > (s.value->>'ph_max')::numeric) THEN 'pH ngoài ngưỡng'
@@ -202,12 +237,90 @@ CROSS JOIN public.app_settings s
 WHERE s.key = 'env_thresholds'
   AND rn = 1;
 
+-- --- View: sản lượng dự kiến (tấn) từ nhập tay hoặc tồn × kỳ vọng ---
+CREATE OR REPLACE VIEW public.v_pond_yield_projection AS
+SELECT
+  p.id AS pond_id,
+  p.agent_id,
+  p.status,
+  p.planned_harvest_date,
+  p.adjusted_harvest_date,
+  p.planned_yield_t,
+  p.adjusted_yield_t,
+  p.estimated_fish_count,
+  p.expected_harvest_weight_kg,
+  COALESCE(
+    p.adjusted_yield_t,
+    CASE
+      WHEN p.estimated_fish_count IS NOT NULL AND p.expected_harvest_weight_kg IS NOT NULL
+      THEN (p.estimated_fish_count::numeric * p.expected_harvest_weight_kg) / 1000
+    END
+  ) AS computed_adjusted_yield_t,
+  COALESCE(
+    p.planned_yield_t,
+    CASE
+      WHEN p.estimated_fish_count IS NOT NULL AND p.expected_harvest_weight_kg IS NOT NULL
+      THEN (p.estimated_fish_count::numeric * p.expected_harvest_weight_kg) / 1000
+    END
+  ) AS computed_planned_yield_t
+FROM public.ponds p;
+
+-- --- View: ao còn trong kế hoạch thu (chưa ghi ngày thu thực tế) ---
+CREATE OR REPLACE VIEW public.v_pond_harvest_timing AS
+SELECT
+  p.id AS pond_id,
+  p.pond_code,
+  p.status,
+  p.agent_id,
+  p.planned_harvest_date,
+  p.adjusted_harvest_date,
+  p.actual_harvest_date,
+  COALESCE(p.adjusted_harvest_date, p.planned_harvest_date) AS effective_harvest_date,
+  (COALESCE(p.adjusted_harvest_date, p.planned_harvest_date) - CURRENT_DATE) AS days_until_harvest
+FROM public.ponds p
+WHERE p.status IN ('CC', 'CT')
+  AND COALESCE(p.adjusted_harvest_date, p.planned_harvest_date) IS NOT NULL
+  AND p.actual_harvest_date IS NULL;
+
+-- --- View: tổng tấn theo tháng (ngày thu hiệu lực) + đại lý, tách CC/CT (ao hiện tại + lịch sử vòng) ---
+CREATE OR REPLACE VIEW public.v_monthly_yield_by_agent AS
+WITH line AS (
+  SELECT
+    date_trunc('month', COALESCE(y.adjusted_harvest_date, y.planned_harvest_date)::timestamptz)::date AS month_bucket,
+    y.agent_id,
+    y.status,
+    COALESCE(y.computed_planned_yield_t, 0) AS cp,
+    COALESCE(y.computed_adjusted_yield_t, 0) AS ca
+  FROM public.v_pond_yield_projection y
+  WHERE COALESCE(y.adjusted_harvest_date, y.planned_harvest_date) IS NOT NULL
+  UNION ALL
+  SELECT
+    date_trunc('month', COALESCE(c.adjusted_harvest_date, c.planned_harvest_date)::timestamptz)::date,
+    p.agent_id,
+    'CC'::text AS status,
+    COALESCE(c.planned_yield_t, 0),
+    COALESCE(c.adjusted_yield_t, c.planned_yield_t, 0)
+  FROM public.pond_production_cycles c
+  INNER JOIN public.ponds p ON p.id = c.pond_id
+  WHERE COALESCE(c.adjusted_harvest_date, c.planned_harvest_date) IS NOT NULL
+)
+SELECT
+  month_bucket,
+  agent_id,
+  SUM(CASE WHEN status = 'CC' THEN cp ELSE 0 END) AS tons_planned_initial_cc,
+  SUM(CASE WHEN status = 'CT' THEN cp ELSE 0 END) AS tons_planned_initial_ct,
+  SUM(CASE WHEN status = 'CC' THEN ca ELSE 0 END) AS tons_planned_adjusted_cc,
+  SUM(CASE WHEN status = 'CT' THEN ca ELSE 0 END) AS tons_planned_adjusted_ct
+FROM line
+GROUP BY 1, 2;
+
 -- ============== RLS (prototype — mở full cho anon) ==============
 ALTER TABLE public.agents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ponds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_pond_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.monthly_harvest_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pond_production_cycles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.calculation_presets ENABLE ROW LEVEL SECURITY;
 
 -- profiles: bật sau khi đã có auth.users (Supabase)
@@ -238,6 +351,11 @@ CREATE POLICY monthly_harvest_plans_anon_all ON public.monthly_harvest_plans FOR
 DROP POLICY IF EXISTS monthly_harvest_plans_auth_all ON public.monthly_harvest_plans;
 CREATE POLICY monthly_harvest_plans_auth_all ON public.monthly_harvest_plans FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS pond_production_cycles_anon_all ON public.pond_production_cycles;
+CREATE POLICY pond_production_cycles_anon_all ON public.pond_production_cycles FOR ALL TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS pond_production_cycles_auth_all ON public.pond_production_cycles;
+CREATE POLICY pond_production_cycles_auth_all ON public.pond_production_cycles FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
 DROP POLICY IF EXISTS calculation_presets_anon_all ON public.calculation_presets;
 CREATE POLICY calculation_presets_anon_all ON public.calculation_presets FOR ALL TO anon USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS calculation_presets_auth_all ON public.calculation_presets;
@@ -257,3 +375,6 @@ CREATE POLICY profiles_self_update ON public.profiles FOR UPDATE TO authenticate
 -- Quyền đọc view cho API
 GRANT SELECT ON public.v_sl_ngay TO anon, authenticated;
 GRANT SELECT ON public.v_env_alerts_latest TO anon, authenticated;
+GRANT SELECT ON public.v_pond_yield_projection TO anon, authenticated;
+GRANT SELECT ON public.v_pond_harvest_timing TO anon, authenticated;
+GRANT SELECT ON public.v_monthly_yield_by_agent TO anon, authenticated;

@@ -21,6 +21,13 @@ type PlanRow = {
   agents: { name: string; code: string } | null;
 };
 
+type HarvestTimingRow = {
+  pond_id: string;
+  pond_code: string;
+  effective_harvest_date: string;
+  days_until_harvest: number;
+};
+
 function isoToday() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -31,6 +38,7 @@ export function DashboardOverview() {
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [ponds, setPonds] = useState<PondRow[]>([]);
+  const [harvestTiming, setHarvestTiming] = useState<HarvestTimingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +52,7 @@ export function DashboardOverview() {
     const supabase = createSupabaseBrowserClient();
     setError(null);
     const day = isoToday();
-    const [slRes, slTrendRes, alertRes, planRes, pondRes] = await Promise.all([
+    const [slRes, slTrendRes, alertRes, planRes, pondRes, harvestRes] = await Promise.all([
       supabase.from("v_sl_ngay").select("*").eq("day", day).maybeSingle(),
       supabase
         .from("v_sl_ngay")
@@ -62,6 +70,11 @@ export function DashboardOverview() {
         .eq("year", year)
         .order("month"),
       supabase.from("ponds").select("*"),
+      supabase
+        .from("v_pond_harvest_timing")
+        .select("pond_id,pond_code,effective_harvest_date,days_until_harvest")
+        .order("days_until_harvest", { ascending: true })
+        .limit(40),
     ]);
     if (slRes.error) setError(slRes.error.message);
     setSl((slRes.data as SlRow | null) ?? null);
@@ -93,6 +106,11 @@ export function DashboardOverview() {
       );
     }
     if (!pondRes.error && pondRes.data) setPonds(pondRes.data as PondRow[]);
+    if (!harvestRes.error && harvestRes.data) {
+      setHarvestTiming(harvestRes.data as HarvestTimingRow[]);
+    } else {
+      setHarvestTiming([]);
+    }
     setLoading(false);
   }, [year]);
 
@@ -195,13 +213,75 @@ export function DashboardOverview() {
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Cảnh báo thu hoạch (theo ngày)
+        </h2>
+        {loading ? (
+          <p className="mt-3 text-sm text-zinc-500">Đang tải…</p>
+        ) : harvestTiming.length === 0 ? (
+          <p className="mt-3 text-sm text-zinc-500">
+            Không có ao nào trong cửa sổ kế hoạch thu (CC/CT, đã có ngày thu, chưa ghi ngày thu thực tế). Cập nhật
+            tại{" "}
+            <Link href="/vung-nuoi" className="text-blue-600 underline dark:text-blue-400">
+              Quản lý vùng nuôi
+            </Link>{" "}
+            hoặc chạy migration view <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">v_pond_harvest_timing</code>.
+          </p>
+        ) : (
+          <>
+            <p className="mt-2 text-xs text-zinc-500">
+              Đỏ: quá hạn so với ngày thu hiệu lực. Vàng: trong 7 ngày tới (ưu tiên thu). Nguồn:{" "}
+              <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">v_pond_harvest_timing</code>.
+            </p>
+            <ul className="mt-3 space-y-2 text-sm">
+              {harvestTiming.slice(0, 16).map((h) => {
+                const overdue = h.days_until_harvest < 0;
+                const priority = !overdue && h.days_until_harvest <= 7;
+                const tone = overdue
+                  ? "border-red-200 bg-red-50 text-red-950 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100"
+                  : priority
+                    ? "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
+                    : "border-zinc-100 bg-zinc-50 text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200";
+                return (
+                  <li
+                    key={h.pond_id}
+                    className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 ${tone}`}
+                  >
+                    <span className="font-mono font-medium">{h.pond_code}</span>
+                    <span className="text-xs">
+                      Thu hiệu lực:{" "}
+                      {new Date(h.effective_harvest_date + "T12:00:00").toLocaleDateString("vi-VN")}
+                      {overdue ? (
+                        <span className="ml-2 font-medium"> · Quá {Math.abs(h.days_until_harvest)} ngày</span>
+                      ) : (
+                        <span className="ml-2 font-medium"> · Còn {h.days_until_harvest} ngày</span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-3 text-xs text-zinc-500">
+              Báo cáo chi tiết:{" "}
+              <Link href="/bao-cao/ke-hoach-thu-hoach" className="text-blue-600 underline dark:text-blue-400">
+                Kế hoạch thu &amp; sản lượng
+              </Link>
+              .
+            </p>
+          </>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
           THKH — Kế hoạch tấn/tháng theo đại lý ({year})
         </h2>
         {planByAgent.length === 0 ? (
           <p className="mt-3 text-sm text-zinc-500">
-            Chưa có dòng kế hoạch. Thêm trong bảng{" "}
-            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">monthly_harvest_plans</code> hoặc màn
-            báo cáo sau này.
+            Chưa có dòng kế hoạch. Nhập tại{" "}
+            <Link href="/bang-mau/ke-hoach-thkh" className="text-blue-600 underline dark:text-blue-400">
+              THKH mục tiêu / tháng
+            </Link>{" "}
+            (bảng <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">monthly_harvest_plans</code>).
           </p>
         ) : (
           <>

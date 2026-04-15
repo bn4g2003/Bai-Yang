@@ -18,6 +18,14 @@ export default function NhatKyLandingPage() {
       <SupabaseConfigBanner />
       <NhatKyToolbar />
       <NhatKyManualEntry />
+      <p className="text-center text-sm">
+        <Link
+          href="/nhat-ky/lich-su"
+          className="font-medium text-blue-600 underline dark:text-blue-400"
+        >
+          Xem lịch sử nhật ký đã nhập
+        </Link>
+      </p>
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
         <p>
           URL nhật ký có dạng{" "}

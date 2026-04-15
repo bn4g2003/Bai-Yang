@@ -39,6 +39,17 @@ export function NavIcon({ id, className = "" }: { id: NavIconId; className?: str
           />
         </svg>
       );
+    case "journalHistory":
+      return (
+        <svg className={c} fill="none" viewBox="0 0 24 24" aria-hidden>
+          <path
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+          />
+        </svg>
+      );
     case "reportHarvest":
       return (
         <svg className={c} fill="none" viewBox="0 0 24 24" aria-hidden>
@@ -47,6 +58,17 @@ export function NavIcon({ id, className = "" }: { id: NavIconId; className?: str
             strokeLinecap="round"
             strokeLinejoin="round"
             d="M4 19V5m0 14h16M8 17V9m4 8V7m4 10v-4"
+          />
+        </svg>
+      );
+    case "reportPlanSummary":
+      return (
+        <svg className={c} fill="none" viewBox="0 0 24 24" aria-hidden>
+          <path
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M4 6h16M4 10h10M4 14h14M4 18h8"
           />
         </svg>
       );

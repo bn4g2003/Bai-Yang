@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import QRCode from "qrcode";
 import { DataTable } from "@/components/data-table/DataTable";
 import type { DataTableColumn } from "@/components/data-table/types";
 import { createSupabaseBrowserClient, supabaseConfigured } from "@/lib/supabase/client";
 import type { AgentRow, PondRow, PondStatus, PondType } from "@/lib/types/pond";
+import { computedAdjustedYieldT, computedPlannedYieldT } from "@/lib/harvest-plan";
 import { DesktopQrScanButton } from "@/components/qr/DesktopQrScanButton";
 import { downloadQrPng, printQrDataUrl } from "@/lib/print-qr";
+import { qrDataUrlWithLogo } from "@/lib/qr-with-logo";
+import { CloseProductionCycleButton } from "@/components/ponds/CloseProductionCycleButton";
+import { PondProductionCyclesBlock } from "@/components/ponds/PondProductionCyclesBlock";
 import {
   btnDanger,
   btnGhost,
@@ -71,6 +74,10 @@ type FormState = {
   planned_harvest_date: string;
   planned_yield_t: string;
   adjusted_harvest_date: string;
+  expected_harvest_weight_kg: string;
+  adjusted_yield_t: string;
+  actual_harvest_date: string;
+  actual_harvest_weight_t: string;
   expected_survival_pct: string;
   current_avg_weight_kg: string;
   estimated_fish_count: string;
@@ -97,6 +104,10 @@ const emptyForm = (): FormState => ({
   planned_harvest_date: "",
   planned_yield_t: "",
   adjusted_harvest_date: "",
+  expected_harvest_weight_kg: "",
+  adjusted_yield_t: "",
+  actual_harvest_date: "",
+  actual_harvest_weight_t: "",
   expected_survival_pct: "",
   current_avg_weight_kg: "",
   estimated_fish_count: "",
@@ -124,6 +135,10 @@ function pondToForm(p: PondRow): FormState {
     planned_harvest_date: isoDate(p.planned_harvest_date),
     planned_yield_t: numStr(p.planned_yield_t),
     adjusted_harvest_date: isoDate(p.adjusted_harvest_date),
+    expected_harvest_weight_kg: numStr(p.expected_harvest_weight_kg),
+    adjusted_yield_t: numStr(p.adjusted_yield_t),
+    actual_harvest_date: isoDate(p.actual_harvest_date),
+    actual_harvest_weight_t: numStr(p.actual_harvest_weight_t),
     expected_survival_pct: numStr(p.expected_survival_pct),
     current_avg_weight_kg: numStr(p.current_avg_weight_kg),
     estimated_fish_count: p.estimated_fish_count != null ? String(p.estimated_fish_count) : "",
@@ -147,6 +162,7 @@ export function PondManagement() {
   const [lastQr, setLastQr] = useState<{ url: string; dataUrl: string; pondCode: string } | null>(
     null,
   );
+  const [cycleListVersion, setCycleListVersion] = useState(0);
 
   const load = useCallback(async () => {
     if (!supabaseConfigured()) {
@@ -177,6 +193,20 @@ export function PondManagement() {
     return m;
   }, [agents]);
 
+  const editingPond = useMemo(
+    () => (editingId ? (ponds.find((p) => p.id === editingId) ?? null) : null),
+    [ponds, editingId],
+  );
+
+  const refreshEditingForm = useCallback(async () => {
+    await load();
+    if (!editingId || !supabaseConfigured()) return;
+    const supabase = createSupabaseBrowserClient();
+    const { data } = await supabase.from("ponds").select("*").eq("id", editingId).maybeSingle();
+    if (data) setForm(pondToForm(data as PondRow));
+    setCycleListVersion((v) => v + 1);
+  }, [editingId, load]);
+
   const journalBaseUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
     return `${window.location.origin}/nhat-ky`;
@@ -190,7 +220,7 @@ export function PondManagement() {
   const onPrintQr = useCallback(
     async (row: PondRow) => {
       const url = makeQrUrl(row.qr_token);
-      const dataUrl = await QRCode.toDataURL(url, { width: 320, margin: 2 });
+      const dataUrl = await qrDataUrlWithLogo(url, { size: 320, margin: 2 });
       printQrDataUrl(dataUrl, row.pond_code);
     },
     [makeQrUrl],
@@ -246,6 +276,27 @@ export function PondManagement() {
     return Number.isFinite(n) ? n : null;
   };
 
+  const yieldPreview = useMemo(() => {
+    const partial: Pick<
+      PondRow,
+      | "planned_yield_t"
+      | "adjusted_yield_t"
+      | "estimated_fish_count"
+      | "expected_harvest_weight_kg"
+    > = {
+      planned_yield_t: parseNum(form.planned_yield_t),
+      adjusted_yield_t: parseNum(form.adjusted_yield_t),
+      estimated_fish_count: parseIntSafe(form.estimated_fish_count),
+      expected_harvest_weight_kg: parseNum(form.expected_harvest_weight_kg),
+    };
+    return {
+      planned: computedPlannedYieldT(partial),
+      adjusted: computedAdjustedYieldT(partial),
+    };
+    // parseNum / parseIntSafe stable per render; derive only from form
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- form drives preview
+  }, [form]);
+
   const buildPayload = () => {
     const plannedDate = form.planned_stocking_date.trim() || null;
     const rel = parseIntSafe(form.total_fish_released);
@@ -267,6 +318,10 @@ export function PondManagement() {
       planned_harvest_date: form.planned_harvest_date.trim() || null,
       planned_yield_t: parseNum(form.planned_yield_t),
       adjusted_harvest_date: form.adjusted_harvest_date.trim() || null,
+      expected_harvest_weight_kg: parseNum(form.expected_harvest_weight_kg),
+      adjusted_yield_t: parseNum(form.adjusted_yield_t),
+      actual_harvest_date: form.actual_harvest_date.trim() || null,
+      actual_harvest_weight_t: parseNum(form.actual_harvest_weight_t),
       expected_survival_pct: parseNum(form.expected_survival_pct),
       current_avg_weight_kg: parseNum(form.current_avg_weight_kg),
       estimated_fish_count: parseIntSafe(form.estimated_fish_count),
@@ -312,7 +367,7 @@ export function PondManagement() {
     const token = (data as { qr_token: string; pond_code: string }).qr_token;
     const pondCode = (data as { qr_token: string; pond_code: string }).pond_code;
     const url = makeQrUrl(token);
-    const dataUrl = await QRCode.toDataURL(url, { width: 320, margin: 2 });
+    const dataUrl = await qrDataUrlWithLogo(url, { size: 320, margin: 2 });
     setLastQr({ url, dataUrl, pondCode });
     closeModal();
     void load();
@@ -435,7 +490,7 @@ export function PondManagement() {
 
       {open ? (
         <div className={modalBackdrop}>
-          <div className={modalPanel + " max-w-xl"} role="dialog" aria-modal>
+          <div className={modalPanel + " max-h-[90vh] max-w-xl overflow-y-auto"} role="dialog" aria-modal>
             <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
@@ -616,6 +671,24 @@ export function PondManagement() {
                     />
                   </label>
                   <label className="block">
+                    <span className={labelClass}>Trọng lượng kỳ vọng lúc thu (kg/con)</span>
+                    <input
+                      className={`${inputClass} mt-1`}
+                      value={form.expected_harvest_weight_kg}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, expected_harvest_weight_kg: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={labelClass}>Sản lượng điều chỉnh (tấn)</span>
+                    <input
+                      className={`${inputClass} mt-1`}
+                      value={form.adjusted_yield_t}
+                      onChange={(e) => setForm((f) => ({ ...f, adjusted_yield_t: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block">
                     <span className={labelClass}>Ngày thu (điều chỉnh)</span>
                     <input
                       type="date"
@@ -623,6 +696,25 @@ export function PondManagement() {
                       value={form.adjusted_harvest_date}
                       onChange={(e) =>
                         setForm((f) => ({ ...f, adjusted_harvest_date: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={labelClass}>Ngày thu thực tế</span>
+                    <input
+                      type="date"
+                      className={`${inputClass} mt-1`}
+                      value={form.actual_harvest_date}
+                      onChange={(e) => setForm((f) => ({ ...f, actual_harvest_date: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={labelClass}>Sản lượng thu thực tế (tấn)</span>
+                    <input
+                      className={`${inputClass} mt-1`}
+                      value={form.actual_harvest_weight_t}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, actual_harvest_weight_t: e.target.value }))
                       }
                     />
                   </label>
@@ -656,6 +748,21 @@ export function PondManagement() {
                       }
                     />
                   </label>
+                  <div className="block sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                    <span className="font-medium text-slate-700 dark:text-slate-300">Tính từ tồn × kỳ vọng:</span>{" "}
+                    Kế hoạch gốc ≈{" "}
+                    {yieldPreview.planned != null
+                      ? `${yieldPreview.planned.toLocaleString("vi-VN", { maximumFractionDigits: 3 })} tấn`
+                      : "—"}
+                    {" · "}
+                    Điều chỉnh ≈{" "}
+                    {yieldPreview.adjusted != null
+                      ? `${yieldPreview.adjusted.toLocaleString("vi-VN", { maximumFractionDigits: 3 })} tấn`
+                      : "—"}
+                    <span className="mt-1 block text-slate-500">
+                      Nếu đã nhập tấn tay, hệ thống ưu tiên số nhập thay vì công thức.
+                    </span>
+                  </div>
                   <label className="block">
                     <span className={labelClass}>Tồn khối lượng (tấn)</span>
                     <input
@@ -708,6 +815,14 @@ export function PondManagement() {
                   </label>
                 </div>
               </fieldset>
+
+              {editingPond ? (
+                <div className="rounded-lg border border-amber-200/80 bg-amber-50/50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+                  <CloseProductionCycleButton pond={editingPond} onDone={() => void refreshEditingForm()} />
+                </div>
+              ) : null}
+
+              <PondProductionCyclesBlock pondId={editingId} refreshKey={cycleListVersion} />
 
               <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
                 <button type="button" className={btnGhost} onClick={closeModal}>

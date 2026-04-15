@@ -1,0 +1,3 @@
+-- Đồng bộ với database/schema.sql — chạy file đó làm nguồn chính, hoặc:
+-- \i ../../../database/schema.sql
+-- Hoặc dán nội dung database/schema.sql vào Supabase SQL Editor.

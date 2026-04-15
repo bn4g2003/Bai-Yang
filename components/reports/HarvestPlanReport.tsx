@@ -5,6 +5,14 @@ import { DataTable } from "@/components/data-table/DataTable";
 import type { DataTableColumn } from "@/components/data-table/types";
 import { createSupabaseBrowserClient, supabaseConfigured } from "@/lib/supabase/client";
 import type { AgentRow, PondRow, PondStatus } from "@/lib/types/pond";
+import {
+  computedAdjustedYieldT,
+  computedPlannedYieldT,
+  harvestTimingKind,
+  harvestTimingLabel,
+} from "@/lib/harvest-plan";
+import { HARVEST_PLAN_EXPORT_HEADERS, harvestPlanRowsForExport } from "@/lib/harvest-export-rows";
+import { ExportToolbar } from "@/components/reports/ExportToolbar";
 
 type PondWithAgent = PondRow & { agents: Pick<AgentRow, "name" | "code" | "region_label"> | null };
 
@@ -121,19 +129,79 @@ export function HarvestPlanReport() {
         cell: (r) => (r.estimated_fish_count != null ? String(r.estimated_fish_count) : "—"),
       },
       {
+        id: "exp_w",
+        header: "TL kỳ vọng lúc thu (kg/con)",
+        cell: (r) => (r.expected_harvest_weight_kg != null ? String(r.expected_harvest_weight_kg) : "—"),
+      },
+      {
         id: "plan_date",
         header: "Ngày thu dự kiến (gốc)",
         cell: (r) => (r.planned_harvest_date ? fmtDate(r.planned_harvest_date) : "—"),
       },
       {
         id: "plan_yield",
-        header: "SL dự kiến gốc (tấn)",
+        header: "SL gốc nhập (tấn)",
         cell: (r) => (r.planned_yield_t != null ? String(r.planned_yield_t) : "—"),
+      },
+      {
+        id: "plan_yield_calc",
+        header: "SL gốc tính (tấn)",
+        cell: (r) => fmtTon(computedPlannedYieldT(r)),
       },
       {
         id: "adj_date",
         header: "Ngày thu (điều chỉnh)",
         cell: (r) => (r.adjusted_harvest_date ? fmtDate(r.adjusted_harvest_date) : "—"),
+      },
+      {
+        id: "adj_yield_in",
+        header: "SL điều chỉnh nhập (tấn)",
+        cell: (r) => (r.adjusted_yield_t != null ? String(r.adjusted_yield_t) : "—"),
+      },
+      {
+        id: "adj_yield_calc",
+        header: "SL điều chỉnh tính (tấn)",
+        cell: (r) => fmtTon(computedAdjustedYieldT(r)),
+      },
+      {
+        id: "actual_h",
+        header: "Đã thu — ngày",
+        cell: (r) => (r.actual_harvest_date ? fmtDate(r.actual_harvest_date) : "—"),
+      },
+      {
+        id: "actual_w",
+        header: "Đã thu — tấn",
+        cell: (r) => (r.actual_harvest_weight_t != null ? String(r.actual_harvest_weight_t) : "—"),
+      },
+      {
+        id: "harvest_alert",
+        header: "Cảnh báo thu",
+        cell: (r) => {
+          const k = harvestTimingKind(r);
+          const label = harvestTimingLabel(r);
+          if (k === "overdue") {
+            return (
+              <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-900 ring-1 ring-red-200 dark:bg-red-950/50 dark:text-red-100 dark:ring-red-900">
+                {label}
+              </span>
+            );
+          }
+          if (k === "priority") {
+            return (
+              <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-950 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-900">
+                {label}
+              </span>
+            );
+          }
+          if (r.status === "TH" || r.actual_harvest_date) {
+            return (
+              <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-100 dark:ring-emerald-900">
+                {label}
+              </span>
+            );
+          }
+          return <span className="text-zinc-400">{label}</span>;
+        },
       },
       {
         id: "bio",
@@ -236,6 +304,14 @@ export function HarvestPlanReport() {
           </span>
           .
         </p>
+        <ExportToolbar
+          title={`Báo cáo kế hoạch thu — ${month}/${year}`}
+          fileBase={`ke-hoach-thu-${year}-${String(month).padStart(2, "0")}`}
+          sheetName="Ke-hoach-thu"
+          headers={HARVEST_PLAN_EXPORT_HEADERS}
+          getRows={() => harvestPlanRowsForExport(filtered)}
+          disabled={loading || filtered.length === 0}
+        />
       </div>
 
       {loading ? (
@@ -259,4 +335,9 @@ function fmtDate(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("vi-VN");
+}
+
+function fmtTon(n: number | null) {
+  if (n == null || Number.isNaN(n)) return "—";
+  return n.toLocaleString("vi-VN", { maximumFractionDigits: 3 });
 }

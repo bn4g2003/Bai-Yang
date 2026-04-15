@@ -2,7 +2,9 @@ export type NavIconId =
   | "dashboard"
   | "ponds"
   | "journal"
+  | "journalHistory"
   | "reportHarvest"
+  | "reportPlanSummary"
   | "reportEnv"
   | "settings"
   | "agents";
@@ -34,6 +36,7 @@ export const mainNavGroups: NavGroup[] = [
     items: [
       { href: "/vung-nuoi", label: "Quản lý vùng nuôi", icon: "ponds" },
       { href: "/nhat-ky", label: "Nhật ký ao (QR)", icon: "journal" },
+      { href: "/nhat-ky/lich-su", label: "Lịch sử nhật ký", icon: "journalHistory" },
     ],
   },
   {
@@ -46,6 +49,11 @@ export const mainNavGroups: NavGroup[] = [
         label: "Kế hoạch thu & sản lượng",
         icon: "reportHarvest",
       },
+      {
+        href: "/bao-cao/tong-hop-ke-hoach",
+        label: "Tổng hợp kế hoạch (đại lý)",
+        icon: "reportPlanSummary",
+      },
       { href: "/bao-cao/moi-truong", label: "Môi trường", icon: "reportEnv" },
     ],
   },
@@ -56,6 +64,7 @@ export const mainNavGroups: NavGroup[] = [
     items: [
       { href: "/cai-dat", label: "Cài đặt & danh mục", icon: "settings" },
       { href: "/bang-mau", label: "Danh mục đại lý", icon: "agents" },
+      { href: "/bang-mau/ke-hoach-thkh", label: "THKH mục tiêu / tháng", icon: "reportPlanSummary" },
     ],
   },
 ];
@@ -76,9 +85,19 @@ export const overviewTiles: {
     description: "Quét QR tại ao để mở form nhập liệu hàng ngày trên điện thoại.",
   },
   {
+    href: "/nhat-ky/lich-su",
+    title: "Lịch sử nhật ký",
+    description: "Xem lại các bản ghi nhật ký đã lưu, lọc theo ao và ngày.",
+  },
+  {
     href: "/bao-cao/ke-hoach-thu-hoach",
     title: "Báo cáo kế hoạch thu",
     description: "Lưới dữ liệu: đầu vào, tăng trưởng, dự báo, QA/QC, ghi chú xử lý.",
+  },
+  {
+    href: "/bao-cao/tong-hop-ke-hoach",
+    title: "Tổng hợp kế hoạch",
+    description: "Tổng tấn theo tháng và đại lý: kế hoạch gốc vs điều chỉnh, CC/CT.",
   },
   {
     href: "/bao-cao/moi-truong",
@@ -94,5 +113,10 @@ export const overviewTiles: {
     href: "/bang-mau",
     title: "Danh mục đại lý",
     description: "Quản lý đầu mối / khu vực — gắn với ao và báo cáo THKH.",
+  },
+  {
+    href: "/bang-mau/ke-hoach-thkh",
+    title: "THKH mục tiêu tháng",
+    description: "Nhập tấn/tháng theo đại lý cho biểu đồ Dashboard.",
   },
 ];

@@ -15,7 +15,9 @@ const DEFAULT_THRESHOLDS = `{
   "do_min": 4,
   "nh3_max": 0.1,
   "ph_min": 6.5,
-  "ph_max": 8.5
+  "ph_max": 8.5,
+  "temp_min": 26,
+  "temp_max": 34
 }`;
 
 export function SettingsScreen() {
@@ -86,7 +88,8 @@ export function SettingsScreen() {
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Ngưỡng cảnh báo môi trường</h2>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           Dùng bởi view <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">v_env_alerts_latest</code>{" "}
-          trên Dashboard.
+          trên Dashboard. Thêm <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">temp_min</code> /{" "}
+          <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">temp_max</code> (°C) để cảnh báo nhiệt độ.
         </p>
         {loading ? (
           <p className="mt-3 text-sm text-zinc-500">Đang tải…</p>
