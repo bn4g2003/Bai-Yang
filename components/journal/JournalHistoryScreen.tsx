@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { DataTable } from "@/components/data-table/DataTable";
 import type { DataTableColumn } from "@/components/data-table/types";
 import { ExportToolbar } from "@/components/reports/ExportToolbar";
@@ -15,10 +16,15 @@ function fmtNum(n: number | null | undefined) {
   return String(n);
 }
 
-export function JournalHistoryScreen() {
+type JournalHistoryScreenProps = {
+  /** Khi mở từ quản lý ao (`?pond=uuid`), tự lọc theo hồ đó. */
+  initialPondId?: string | null;
+};
+
+export function JournalHistoryScreen({ initialPondId = null }: JournalHistoryScreenProps) {
   const [ponds, setPonds] = useState<PondRow[]>([]);
   const [agents, setAgents] = useState<AgentRow[]>([]);
-  const [pondId, setPondId] = useState("");
+  const [pondId, setPondId] = useState(() => initialPondId?.trim() ?? "");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [rows, setRows] = useState<LogWithPond[]>([]);
@@ -186,6 +192,12 @@ export function JournalHistoryScreen() {
     });
   }, [rows, ponds, agentNameById]);
 
+  const lockedPondLabel = useMemo(() => {
+    if (!pondId) return null;
+    const p = ponds.find((x) => x.id === pondId);
+    return p ? `${p.pond_code} — ${p.owner_name}` : null;
+  }, [pondId, ponds]);
+
   if (!supabaseConfigured()) {
     return (
       <p className="text-sm text-amber-800 dark:text-amber-100">Cấu hình Supabase trong .env để xem lịch sử.</p>
@@ -197,6 +209,23 @@ export function JournalHistoryScreen() {
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-100">
           {error}
+        </p>
+      ) : null}
+
+      {initialPondId?.trim() ? (
+        <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100">
+          Đang xem nhật ký{" "}
+          {lockedPondLabel ? (
+            <>
+              của <span className="font-medium">{lockedPondLabel}</span>
+            </>
+          ) : (
+            <>theo ao đã chọn từ quản lý vùng nuôi</>
+          )}
+          .{" "}
+          <Link href="/nhat-ky/lich-su" className="font-medium text-blue-700 underline dark:text-blue-300">
+            Xem tất cả ao
+          </Link>
         </p>
       ) : null}
 

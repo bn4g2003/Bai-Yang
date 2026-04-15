@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table/DataTable";
 import type { DataTableColumn } from "@/components/data-table/types";
@@ -293,8 +294,6 @@ export function PondManagement() {
       planned: computedPlannedYieldT(partial),
       adjusted: computedAdjustedYieldT(partial),
     };
-    // parseNum / parseIntSafe stable per render; derive only from form
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- form drives preview
   }, [form]);
 
   const buildPayload = () => {
@@ -431,6 +430,12 @@ export function PondManagement() {
         header: "Thao tác",
         cell: (r) => (
           <div className="flex flex-wrap items-center gap-1.5">
+            <Link
+              href={`/nhat-ky/lich-su?pond=${encodeURIComponent(r.id)}`}
+              className={btnSecondary + " !px-2 !py-1.5 text-xs no-underline"}
+            >
+              Lịch sử
+            </Link>
             <button type="button" className={btnSecondary + " !px-2 !py-1.5 text-xs"} onClick={() => openEdit(r)}>
               Sửa
             </button>
@@ -501,6 +506,16 @@ export function PondManagement() {
                     ? "Mã ao không đổi. QR nhật ký giữ nguyên."
                     : "Sau khi tạo, hệ thống sinh QR duy nhất cho nhật ký ao."}
                 </p>
+                {editingId ? (
+                  <p className="mt-2 text-xs">
+                    <Link
+                      href={`/nhat-ky/lich-su?pond=${encodeURIComponent(editingId)}`}
+                      className="font-medium text-blue-600 underline dark:text-blue-400"
+                    >
+                      Xem lịch sử nhật ký của ao này
+                    </Link>
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"

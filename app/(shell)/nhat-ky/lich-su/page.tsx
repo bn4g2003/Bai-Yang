@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SupabaseConfigBanner } from "@/components/system/SupabaseConfigBanner";
-import { JournalHistoryScreen } from "@/components/journal/JournalHistoryScreen";
+import { JournalHistoryFromSearch } from "@/components/journal/JournalHistoryFromSearch";
 
 export default function JournalHistoryPage() {
   return (
@@ -21,7 +21,7 @@ export default function JournalHistoryPage() {
           ← Quay lại nhập nhật ký
         </Link>
       </p>
-      <JournalHistoryScreen />
+      <JournalHistoryFromSearch />
     </div>
   );
 }
